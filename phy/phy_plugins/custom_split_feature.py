@@ -170,7 +170,7 @@ class ReclusterGaussian(IPlugin):
                 # prompt_default=lambda: [139,1,133,1,2],
             )
             def gaussian(chan1, chan2, n_clusters):
-                """Split using mean_shift algorithm: channel1 pc1 channel2 pc2 nclusters"""
+                """Split using gaussian algorithm: channel1 channel2 nclusters"""
                 # manual_selection = []
                 # try:
                 #     manual_selection.append(controller.selection.channel_id)
