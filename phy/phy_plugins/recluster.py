@@ -23,11 +23,11 @@ logger = logging.getLogger("phy")
 try:
     import pandas as pd
 except ImportError:  # pragma: no cover
-    logger.warn("Package pandas not installed.")
+    logger.warning("Package pandas not installed.")
 try:
     from phy.utils.config import phy_config_dir
 except ImportError:  # pragma: no cover
-    logger.warn("phy_config_dir not available.")
+    logger.warning("phy_config_dir not available.")
 
 
 class Recluster(IPlugin):
@@ -71,7 +71,7 @@ class Recluster(IPlugin):
                 """Relaunch KlustaKwik on selected clusters."""
                 # Selected clusters.
                 cluster_ids = controller.supervisor.selected
-                spike_ids = controller.selector.select_spikes(cluster_ids)
+                spike_ids = get_spike_ids(controller, cluster_ids)
                 logger.info("Running KlustaKwik on %d spikes.", len(spike_ids))
                 # s = controller.supervisor.clustering.spikes_in_clusters(cluster_ids)
                 data3 = controller.model._load_features().data[spike_ids]
@@ -171,7 +171,7 @@ class Recluster(IPlugin):
                 """Relaunch KlustaKwik on selected clusters."""
                 # Selected clusters.
                 cluster_ids = controller.supervisor.selected
-                spike_ids = controller.selector.select_spikes(cluster_ids)
+                spike_ids = get_spike_ids(controller, cluster_ids)
                 logger.info("Running KlustaKwik on %d spikes.", len(spike_ids))
                 # s = controller.supervisor.clustering.spikes_in_clusters(cluster_ids)
                 data3 = controller.model._load_features().data[spike_ids]
@@ -204,7 +204,7 @@ class Recluster(IPlugin):
                 if platform.system() == "Windows":
                     program = os.path.join(phy_config_dir(), "klustakwik.exe")
                 else:
-                    program = "~/klustakwik/KlustaKwik"
+                    program = "KlustaKwik"
                 cmd = [program, name, str(shank)]
                 cmd += [
                     "-UseDistributional",
@@ -217,7 +217,7 @@ class Recluster(IPlugin):
                 # Read back the clusters
                 spike_clusters = read_clusters(name + ".clu." + str(shank))
                 controller.supervisor.actions.split(spike_ids, spike_clusters)
-                logger.warn("Reclustering complete!")
+                logger.warning("Reclustering complete!")
 
             @controller.supervisor.actions.add(
                 shortcut="alt+q", prompt=True, prompt_default=lambda: 2
@@ -228,11 +228,10 @@ class Recluster(IPlugin):
                 Example: `2`
 
                 """
-                logger.warn("Running K-means clustering")
+                logger.warning("Running K-means clustering")
 
                 cluster_ids = controller.supervisor.selected
-
-                spike_ids = controller.selector.select_spikes(cluster_ids)
+                spike_ids = get_spike_ids(controller, cluster_ids)
                 s = controller.supervisor.clustering.spikes_in_clusters(cluster_ids)
                 data = controller.model._load_features()
                 data3 = data.data[spike_ids]
@@ -242,7 +241,7 @@ class Recluster(IPlugin):
                 whitened = whiten(data2[:, [0, 1, 2]])
                 clusters_out, label = kmeans2(whitened, kmeanclusters)
                 controller.supervisor.actions.split(s, label)
-                logger.warn("K means clustering complete")
+                logger.warning("K means clustering complete")
 
             # @controller.supervisor.actions.add(shortcut='alt+x')
             @controller.supervisor.actions.add(
@@ -254,7 +253,7 @@ class Recluster(IPlugin):
                 Example: `14`
 
                 """
-                logger.warn("Removing outliers by Mahalanobis distance")
+                logger.warning("Removing outliers by Mahalanobis distance")
 
                 def MahalanobisDistCalc2(x, y):
                     covariance_xy = np.cov(x, y, rowvar=0)
@@ -292,7 +291,7 @@ class Recluster(IPlugin):
                     return d
 
                 cluster_ids = controller.supervisor.selected
-                spike_ids = controller.selector.select_spikes(cluster_ids)
+                spike_ids = get_spike_ids(controller, cluster_ids)
                 s = controller.supervisor.clustering.spikes_in_clusters(cluster_ids)
                 data = controller.model._load_features()
                 data3 = data.data[spike_ids]
@@ -300,7 +299,7 @@ class Recluster(IPlugin):
                     data3, (data3.shape[0], data3.shape[1] * data3.shape[2])
                 )
                 if data2.shape[0] < data2.shape[1]:
-                    logger.warn("Error: Not enought spikes in the cluster!")
+                    logger.warning("Error: Not enough spikes in the cluster!")
                     return
 
                 MD = MahalanobisDistCalc(data2, data2)
@@ -311,3 +310,14 @@ class Recluster(IPlugin):
                 outliers2[outliers] = 2
                 logger.info("Outliers detected: %d.", len(outliers))
                 controller.supervisor.actions.split(s, outliers2)
+
+
+def get_spike_ids(controller, cluster_ids: list):
+    """Get ids of all spikes in a selected cluster, maintains compatibility for phy versions before and
+    after 2.0b5 """
+    try:  # This method works for older versions of phy (~pre 2.0b5)
+        spike_ids = controller.selector.select_spikes(cluster_ids)
+    except AttributeError:  # This method should work for ~2.0b5 and later
+        spike_ids = controller.get_spike_ids(cluster_ids[0])
+
+    return spike_ids
